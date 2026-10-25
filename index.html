@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>孝敬基金帳</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --card: #ffffff;
+    --text: #2b2b2b;
+    --muted: #7a7a72;
+    --line: #e5e2d9;
+    --accent: #3d6b5a;
+    --income: #2f7d4f;
+    --expense: #b5472f;
+    --chart: #3d6b5a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161816;
+      --card: #20231f;
+      --text: #ecebe6;
+      --muted: #9a9b92;
+      --line: #33362f;
+      --accent: #7fb59c;
+      --income: #7fd09a;
+      --expense: #f08a72;
+      --chart: #7fb59c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161816;
+    --card: #20231f;
+    --text: #ecebe6;
+    --muted: #9a9b92;
+    --line: #33362f;
+    --accent: #7fb59c;
+    --income: #7fd09a;
+    --expense: #f08a72;
+    --chart: #7fb59c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 20px; }
+  h1 { font-size: 1.6rem; margin: 0; color: var(--accent); }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .sub { color: var(--muted); font-size: 0.9rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .card .label { color: var(--muted); font-size: 0.85rem; }
+  .card .value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .card.hero { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .card.hero .label { color: rgba(255,255,255,0.8); }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 20px; }
+  svg.chart { width: 100%; height: auto; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child, th.left, td.left { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.82rem; }
+  td.desc { white-space: normal; text-align: left; min-width: 120px; }
+  .inc { color: var(--income); }
+  .exp { color: var(--expense); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .controls input, .controls select {
+    font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text);
+  }
+  .controls input { flex: 1; min-width: 160px; }
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .empty { text-align: center; color: var(--muted); padding: 24px 0; }
+  footer { color: var(--muted); font-size: 0.8rem; text-align: center; margin-top: 24px; }
+  @media (max-width: 600px) {
+    .wrap { padding: 16px 12px 36px; }
+    th, td { padding: 8px 6px; font-size: 0.85rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="gate" style="max-width:360px;margin-top:12vh">
+  <h1>孝敬基金帳</h1>
+  <p class="sub">請輸入密碼以檢視帳目</p>
+  <form id="gateForm" style="display:flex;gap:8px;flex-wrap:wrap">
+    <input type="password" id="pw" autocomplete="current-password" placeholder="密碼" style="flex:1;min-width:180px;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text)">
+    <button type="submit" style="font:inherit;padding:10px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer">開啟</button>
+  </form>
+  <p class="sub" id="gateErr" style="color:var(--expense);min-height:1.5em"></p>
+</div>
+
+<div class="wrap" id="app" hidden>
+  <header>
+    <h1>孝敬基金帳</h1>
+    <span class="sub" id="updated"></span>
+  </header>
+
+  <section class="cards">
+    <div class="card hero"><div class="label">目前餘額</div><div class="value" id="balance">-</div></div>
+    <div class="card"><div class="label">累計收入</div><div class="value inc" id="totalIn">-</div></div>
+    <div class="card"><div class="label">累計支出</div><div class="value exp" id="totalOut">-</div></div>
+    <div class="card"><div class="label">紀錄筆數</div><div class="value" id="count">-</div></div>
+  </section>
+
+  <section class="panel">
+    <h2>餘額走勢</h2>
+    <svg class="chart" id="chart" viewBox="0 0 900 300" role="img" aria-label="餘額走勢圖"></svg>
+  </section>
+
+  <section class="panel">
+    <h2>年度摘要</h2>
+    <div class="scroll">
+      <table id="yearTable">
+        <thead>
+          <tr><th class="left">年度</th><th>收入</th><th>支出</th><th>淨額</th><th>年末餘額</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>明細</h2>
+    <div class="controls">
+      <select id="yearFilter"><option value="">全部年度</option></select>
+      <input id="search" type="search" placeholder="搜尋說明…">
+    </div>
+    <div class="scroll">
+      <table id="txTable">
+        <thead>
+          <tr><th class="left">日期</th><th class="left">說明</th><th>收入</th><th>支出</th><th>餘額</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="empty" id="emptyMsg" hidden>找不到符合的紀錄</div>
+  </section>
+
+  <footer>唯讀瀏覽頁｜資料來源：孝敬基金帳 Google 試算表</footer>
+</div>
+
+<script>
+window.renderLedger = function (rows) {
+  var fmt = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+
+  if (!rows.length) { document.body.insertAdjacentHTML('beforeend', '<p class="empty">尚無資料</p>'); return; }
+
+  var last = rows[rows.length - 1];
+  var totalIn = 0, totalOut = 0;
+  rows.forEach(function (r) { totalIn += Number(r.income) || 0; totalOut += Number(r.expense) || 0; });
+
+  document.getElementById('balance').textContent = fmt(last.balance);
+  document.getElementById('totalIn').textContent = fmt(totalIn);
+  document.getElementById('totalOut').textContent = fmt(totalOut);
+  document.getElementById('count').textContent = rows.length.toLocaleString('en-US');
+  document.getElementById('updated').textContent = '最後紀錄：' + (last.date || last.year);
+
+  // Balance chart
+  (function drawChart() {
+    var svg = document.getElementById('chart');
+    var W = 900, H = 300, pl = 90, pr = 16, pt = 16, pb = 40;
+    var bals = rows.map(function (r) { return Number(r.balance) || 0; });
+    var min = Math.min.apply(null, bals), max = Math.max.apply(null, bals);
+    var pad = (max - min) * 0.08 || 1000;
+    min = Math.max(0, min - pad); max = max + pad;
+    var x = function (i) { return pl + (rows.length === 1 ? 0 : i / (rows.length - 1) * (W - pl - pr)); };
+    var y = function (v) { return pt + (1 - (v - min) / (max - min)) * (H - pt - pb); };
+
+    var g = '';
+    for (var k = 0; k <= 4; k++) {
+      var v = min + (max - min) * k / 4, yy = y(v);
+      g += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--line)" stroke-width="1"/>';
+      g += '<text x="' + (pl - 8) + '" y="' + (yy + 7) + '" text-anchor="end" font-size="22" fill="var(--muted)">' + Math.round(v / 1000) + 'k</text>';
+    }
+    // year ticks
+    var seen = {};
+    rows.forEach(function (r, i) {
+      if (!seen[r.year]) {
+        seen[r.year] = true;
+        if (r.year % 2 === 0) g += '<text x="' + x(i) + '" y="' + (H - 6) + '" font-size="22" fill="var(--muted)">' + r.year + '</text>';
+      }
+    });
+    var pts = bals.map(function (b, i) { return x(i).toFixed(1) + ',' + y(b).toFixed(1); });
+    var area = 'M' + x(0) + ',' + (H - pb) + ' L' + pts.join(' L') + ' L' + x(rows.length - 1) + ',' + (H - pb) + ' Z';
+    g += '<path d="' + area + '" fill="var(--chart)" opacity="0.12"/>';
+    g += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="var(--chart)" stroke-width="2.2" stroke-linejoin="round"/>';
+    svg.innerHTML = g;
+  })();
+
+  // Year summary
+  (function yearSummary() {
+    var byYear = {}, order = [];
+    rows.forEach(function (r) {
+      if (!byYear[r.year]) { byYear[r.year] = { inc: 0, out: 0, end: 0 }; order.push(r.year); }
+      byYear[r.year].inc += Number(r.income) || 0;
+      byYear[r.year].out += Number(r.expense) || 0;
+      byYear[r.year].end = Number(r.balance) || 0;
+    });
+    var html = order.slice().reverse().map(function (yr) {
+      var d = byYear[yr], net = d.inc - d.out;
+      return '<tr><td class="left">' + yr + '</td>' +
+        '<td class="inc">' + fmt(d.inc) + '</td>' +
+        '<td class="exp">' + fmt(d.out) + '</td>' +
+        '<td class="' + (net >= 0 ? 'inc' : 'exp') + '">' + (net >= 0 ? '+' : '−') + fmt(Math.abs(net)).replace('$', '$') + '</td>' +
+        '<td>' + fmt(d.end) + '</td></tr>';
+    }).join('');
+    document.querySelector('#yearTable tbody').innerHTML = html;
+  })();
+
+  // Transactions with filter
+  var yearSel = document.getElementById('yearFilter');
+  Array.from(new Set(rows.map(function (r) { return r.year; }))).reverse().forEach(function (yr) {
+    var o = document.createElement('option'); o.value = yr; o.textContent = yr; yearSel.appendChild(o);
+  });
+  var search = document.getElementById('search');
+
+  function renderTx() {
+    var yr = yearSel.value, q = search.value.trim().toLowerCase();
+    var list = rows.filter(function (r) {
+      if (yr && String(r.year) !== yr) return false;
+      if (q && !(String(r.desc).toLowerCase().indexOf(q) >= 0 || String(r.note).toLowerCase().indexOf(q) >= 0)) return false;
+      return true;
+    }).reverse();
+    var html = list.map(function (r) {
+      var note = r.note ? ' <span class="sub">' + esc(r.note) + '</span>' : '';
+      return '<tr><td class="left">' + esc(r.date || r.year) + '</td>' +
+        '<td class="desc">' + esc(r.desc) + note + '</td>' +
+        '<td class="inc">' + (r.income ? fmt(r.income) : '') + '</td>' +
+        '<td class="exp">' + (r.expense ? fmt(r.expense) : '') + '</td>' +
+        '<td>' + fmt(r.balance) + '</td></tr>';
+    }).join('');
+    document.querySelector('#txTable tbody').innerHTML = html;
+    document.getElementById('emptyMsg').hidden = list.length > 0;
+  }
+  yearSel.addEventListener('change', renderTx);
+  search.addEventListener('input', renderTx);
+  renderTx();
+};
+</script>
+<script>
+(function () {
+  var gate = document.getElementById('gate'), app = document.getElementById('app');
+  var errBox = document.getElementById('gateErr');
+  var env = null;
+  function b64ToBytes(s) {
+    var bin = atob(s), a = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    return a;
+  }
+  async function decrypt(pw, e) {
+    var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    var key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: b64ToBytes(e.salt), iterations: e.iter, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    var buf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(e.iv) }, key, b64ToBytes(e.data));
+    return JSON.parse(new TextDecoder().decode(buf));
+  }
+  fetch('data.enc.json', { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+    .then(function (j) { env = j; })
+    .catch(function () { errBox.textContent = '無法載入資料檔'; });
+  document.getElementById('gateForm').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var pw = document.getElementById('pw').value;
+    if (!env) { errBox.textContent = '資料尚未載入，請稍後再試'; return; }
+    try {
+      var rows = await decrypt(pw, env);
+      gate.hidden = true;
+      app.hidden = false;
+      window.renderLedger(rows);
+    } catch (e) {
+      errBox.textContent = '密碼不正確';
+    }
+  });
+})();
+</script>
+</body>
+</html>
